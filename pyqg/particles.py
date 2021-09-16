@@ -10,7 +10,7 @@ try:
     import scipy.ndimage
 except ImportError:
     warnings.warn(
-        "Failed to import scipy.ndimage. " "Gridded interpolation will not work",
+        "Failed to import scipy.ndimage. Gridded interpolation will not work",
         ImportWarning,
     )
 

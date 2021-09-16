@@ -177,19 +177,19 @@ class LayeredModel(model.Model):
             assert np.all(self.gpi > 0.0), "Buoyancy jump has negative sign!"
 
             assert self.Hi.size == self.nz, self.logger.error(
-                "size of Hi does not" + "match number of vertical levels nz"
+                "size of Hi does not match number of vertical levels nz"
             )
 
             assert self.rhoi.size == self.nz, self.logger.error(
-                "size of rhoi does not" + "match number of vertical levels nz"
+                "size of rhoi does not match number of vertical levels nz"
             )
 
             assert self.Ubg.size == self.nz, self.logger.error(
-                "size of Ubg does not" + "match number of vertical levels nz"
+                "size of Ubg does not match number of vertical levels nz"
             )
 
             assert self.Vbg.size == self.nz, self.logger.error(
-                "size of Vbg does not" + "match number of vertical levels nz"
+                "size of Vbg does not match number of vertical levels nz"
             )
 
         else:
