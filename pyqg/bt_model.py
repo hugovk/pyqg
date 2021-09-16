@@ -23,7 +23,7 @@ class BTModel(model.Model):
 
     """
 
-    def __init__(self, beta=0.,  rd=0., H=1., U=0., **kwargs):
+    def __init__(self, beta=0.0, rd=0.0, H=1.0, U=0.0, **kwargs):
         """
         Parameters
         ----------
@@ -40,21 +40,21 @@ class BTModel(model.Model):
         self.beta = beta
         self.rd = rd
         self.H = H
-        self.Hi = np.array(H)[np.newaxis,...]
+        self.Hi = np.array(H)[np.newaxis, ...]
         self.U = U
 
         self.nz = 1
 
         # deformation wavenumber
         if rd:
-            self.kd2 = rd**-2
+            self.kd2 = rd ** -2
         else:
-            self.kd2 = 0.
+            self.kd2 = 0.0
 
         super().__init__(**kwargs)
 
         # initial conditions: (PV anomalies)
-        self.set_q(1e-3*np.random.rand(1,self.ny,self.nx))
+        self.set_q(1e-3 * np.random.rand(1, self.ny, self.nx))
 
     def _initialize_background(self):
         """Set up background state (zonal flow and PV gradients)."""
@@ -68,12 +68,12 @@ class BTModel(model.Model):
         # complex versions, multiplied by k, speeds up computations to pre-compute
         self.ikQy = self.Qy * 1j * self.k
 
-        self.ilQx = 0.
+        self.ilQx = 0.0
 
     def _initialize_inversion_matrix(self):
-        """ the inversion """
+        """the inversion"""
         # The bt model is diagonal. The inversion is simply qh = -kappa**2 ph
-        self.a = -(self.wv2i+self.kd2)[np.newaxis, np.newaxis, :, :]
+        self.a = -(self.wv2i + self.kd2)[np.newaxis, np.newaxis, :, :]
 
     def _initialize_forcing(self):
         pass
@@ -102,26 +102,24 @@ class BTModel(model.Model):
 
     def _calc_diagnostics(self):
         # here is where we calculate diagnostics
-        if (self.t>=self.dt) and (self.tc%self.taveints==0):
+        if (self.t >= self.dt) and (self.tc % self.taveints == 0):
             self._increment_diagnostics()
 
     ### All the diagnostic stuff follows. ###
     def _calc_cfl(self):
-        return np.abs(
-            np.hstack([self.u + self.Ubg, self.v])
-        ).max()*self.dt/self.dx
+        return np.abs(np.hstack([self.u + self.Ubg, self.v])).max() * self.dt / self.dx
 
     # calculate KE: this has units of m^2 s^{-2}
     def _calc_ke(self):
-        ke = .5*self.spec_var(self.wv*self.ph)
+        ke = 0.5 * self.spec_var(self.wv * self.ph)
         return ke.sum()
 
     # calculate eddy turn over time
     # (perhaps should change to fraction of year...)
     def _calc_eddy_time(self):
-        """ estimate the eddy turn-over time in days """
-        ens = .5*self.H * self.spec_var(self.wv2*self.ph)
-        return 2.*pi*np.sqrt( self.H / ens ) / year
+        """estimate the eddy turn-over time in days"""
+        ens = 0.5 * self.H * self.spec_var(self.wv2 * self.ph)
+        return 2.0 * pi * np.sqrt(self.H / ens) / year
 
     # def _calc_derived_fields(self):
     #     self.p = self.ifft2( self.ph)

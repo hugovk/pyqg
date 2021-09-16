@@ -4,15 +4,18 @@ from . import model
 
 try:
     import mkl
+
     np.use_fastnumpy = True
 except ImportError:
     pass
 
 try:
     import pyfftw
+
     pyfftw.interfaces.cache.enable()
 except ImportError:
     pass
+
 
 class QGModel(model.Model):
     r"""Two layer quasigeostrophic model.
@@ -56,18 +59,17 @@ class QGModel(model.Model):
 
     """
 
-
     def __init__(
         self,
-        beta=1.5e-11,               # gradient of coriolis parameter
-        #rek=5.787e-7,               # linear drag in lower layer
-        rd=15000.0,                 # deformation radius
-        delta=0.25,                 # layer thickness ratio (H1/H2)
-        H1 = 500,                   # depth of layer 1 (H1)
-        U1=0.025,                   # upper layer flow
-        U2=0.0,                     # lower layer flow
-        **kwargs
-        ):
+        beta=1.5e-11,  # gradient of coriolis parameter
+        # rek=5.787e-7,               # linear drag in lower layer
+        rd=15000.0,  # deformation radius
+        delta=0.25,  # layer thickness ratio (H1/H2)
+        H1=500,  # depth of layer 1 (H1)
+        U1=0.025,  # upper layer flow
+        U2=0.0,  # lower layer flow
+        **kwargs,
+    ):
         """
         Parameters
         ----------
@@ -89,24 +91,22 @@ class QGModel(model.Model):
 
         # physical
         self.beta = beta
-        #self.rek = rek
+        # self.rek = rek
         self.rd = rd
         self.delta = delta
-        self.Hi = np.array([ H1, H1/delta])
+        self.Hi = np.array([H1, H1 / delta])
         self.U1 = U1
         self.U2 = U2
-        #self.filterfac = filterfac
-
+        # self.filterfac = filterfac
 
         super().__init__(nz=2, **kwargs)
 
         # initial conditions: (PV anomalies)
         self.set_q1q2(
-            1e-7*np.random.rand(self.ny,self.nx) + 1e-6*(
-                np.ones((self.ny,1)) * np.random.rand(1,self.nx) ),
-                np.zeros_like(self.x) )
-
-
+            1e-7 * np.random.rand(self.ny, self.nx)
+            + 1e-6 * (np.ones((self.ny, 1)) * np.random.rand(1, self.nx)),
+            np.zeros_like(self.x),
+        )
 
     ### PRIVATE METHODS - not meant to be called by user ###
 
@@ -119,25 +119,26 @@ class QGModel(model.Model):
         self.U = self.U1 - self.U2
 
         # the F parameters
-        self.F1 = self.rd**-2 / (1.+self.delta)
-        self.F2 = self.delta*self.F1
+        self.F1 = self.rd ** -2 / (1.0 + self.delta)
+        self.F2 = self.delta * self.F1
 
         # the meridional PV gradients in each layer
-        self.Qy1 = self.beta + self.F1*(self.U1 - self.U2)
-        self.Qy2 = self.beta - self.F2*(self.U1 - self.U2)
+        self.Qy1 = self.beta + self.F1 * (self.U1 - self.U2)
+        self.Qy2 = self.beta - self.F2 * (self.U1 - self.U2)
         self.Qy = np.array([self.Qy1, self.Qy2])
         # complex versions, multiplied by k, speeds up computations to precompute
         self.ikQy1 = self.Qy1 * 1j * self.k
         self.ikQy2 = self.Qy2 * 1j * self.k
 
         # vector version
-        self.ikQy = np.vstack([self.ikQy1[np.newaxis,...],
-                               self.ikQy2[np.newaxis,...]])
-        self.ilQx = 0.
+        self.ikQy = np.vstack(
+            [self.ikQy1[np.newaxis, ...], self.ikQy2[np.newaxis, ...]]
+        )
+        self.ilQx = 0.0
 
         # layer spacing
-        self.del1 = self.delta/(self.delta+1.)
-        self.del2 = (self.delta+1.)**-1
+        self.del1 = self.delta / (self.delta + 1.0)
+        self.del2 = (self.delta + 1.0) ** -1
 
     def _initialize_inversion_matrix(self):
 
@@ -145,20 +146,21 @@ class QGModel(model.Model):
         # ph[0] = a[0,0] * self.qh[0] + a[0,1] * self.qh[1]
         # ph[1] = a[1,0] * self.qh[0] + a[1,1] * self.qh[1]
 
-        a = np.ma.zeros((self.nz, self.nz, self.nl, self.nk), np.dtype('float64'))
+        a = np.ma.zeros((self.nz, self.nz, self.nl, self.nk), np.dtype("float64"))
         # inverse determinant
-        det_inv =  np.ma.masked_equal(
-                self.wv2 * (self.wv2 + self.F1 + self.F2), 0.)**-1
-        a[0,0] = -(self.wv2 + self.F2)*det_inv
-        a[0,1] = -self.F1*det_inv
-        a[1,0] = -self.F2*det_inv
-        a[1,1] = -(self.wv2 + self.F1)*det_inv
+        det_inv = (
+            np.ma.masked_equal(self.wv2 * (self.wv2 + self.F1 + self.F2), 0.0) ** -1
+        )
+        a[0, 0] = -(self.wv2 + self.F2) * det_inv
+        a[0, 1] = -self.F1 * det_inv
+        a[1, 0] = -self.F2 * det_inv
+        a[1, 1] = -(self.wv2 + self.F1) * det_inv
 
-        self.a = np.ma.masked_invalid(a).filled(0.)
+        self.a = np.ma.masked_invalid(a).filled(0.0)
 
     def _initialize_forcing(self):
         pass
-        #"""Set up frictional filter."""
+        # """Set up frictional filter."""
         # this defines the spectral filter (following Arbic and Flierl, 2003)
         # cphi=0.65*pi
         # wvx=np.sqrt((self.k*self.dx)**2.+(self.l*self.dy)**2.)
@@ -176,12 +178,12 @@ class QGModel(model.Model):
         q1 : array-like
             Lower layer PV anomaly in spatial coordinates.
         """
-        self.set_q(np.vstack([q1[np.newaxis,:,:], q2[np.newaxis,:,:]]))
-        #self.q[0] = q1
-        #self.q[1] = q2
+        self.set_q(np.vstack([q1[np.newaxis, :, :], q2[np.newaxis, :, :]]))
+        # self.q[0] = q1
+        # self.q[1] = q2
 
         # initialize spectral PV
-        #self.qh = self.fft2(self.q)
+        # self.qh = self.fft2(self.q)
 
         # check that it works
         if check:
@@ -201,93 +203,135 @@ class QGModel(model.Model):
         """
         self.U1 = U1
         self.U2 = U2
-        #self.Ubg = np.array([U1,U2])[:,np.newaxis,np.newaxis]
-        self.Ubg = np.array([U1,U2])
+        # self.Ubg = np.array([U1,U2])[:,np.newaxis,np.newaxis]
+        self.Ubg = np.array([U1, U2])
 
     ### All the diagnostic stuff follows. ###
     def _calc_cfl(self):
-        return np.abs(
-            np.hstack([self.u + self.Ubg[:,np.newaxis,np.newaxis], self.v])
-        ).max()*self.dt/self.dx
+        return (
+            np.abs(
+                np.hstack([self.u + self.Ubg[:, np.newaxis, np.newaxis], self.v])
+            ).max()
+            * self.dt
+            / self.dx
+        )
 
     # calculate KE: this has units of m^2 s^{-2}
     #   (should also multiply by H1 and H2...)
     def _calc_ke(self):
-        ke1 = .5*self.Hi[0]*self.spec_var(self.wv*self.ph[0])
-        ke2 = .5*self.Hi[1]*self.spec_var(self.wv*self.ph[1])
-        return ( ke1.sum() + ke2.sum() ) / self.H
+        ke1 = 0.5 * self.Hi[0] * self.spec_var(self.wv * self.ph[0])
+        ke2 = 0.5 * self.Hi[1] * self.spec_var(self.wv * self.ph[1])
+        return (ke1.sum() + ke2.sum()) / self.H
 
     # calculate eddy turn over time
     # (perhaps should change to fraction of year...)
     def _calc_eddy_time(self):
-        """ estimate the eddy turn-over time in days """
+        """estimate the eddy turn-over time in days"""
 
-        ens = .5*self.Hi[0] * self.spec_var(self.wv2*self.ph1) + \
-            .5*self.Hi[1] * self.spec_var(self.wv2*self.ph2)
+        ens = 0.5 * self.Hi[0] * self.spec_var(self.wv2 * self.ph1) + 0.5 * self.Hi[
+            1
+        ] * self.spec_var(self.wv2 * self.ph2)
 
-        return 2.*pi*np.sqrt( self.H / ens ) / 86400
+        return 2.0 * pi * np.sqrt(self.H / ens) / 86400
 
     def _calc_derived_fields(self):
         self.p = self.ifft(self.ph)
-        self.xi =self.ifft(-self.wv2*self.ph)
+        self.xi = self.ifft(-self.wv2 * self.ph)
         self.Jptpc = -self._advect(
-                    (self.p[0] - self.p[1]),
-                    (self.del1*self.u[0] + self.del2*self.u[1]),
-                    (self.del1*self.v[0] + self.del2*self.v[1]))
+            (self.p[0] - self.p[1]),
+            (self.del1 * self.u[0] + self.del2 * self.u[1]),
+            (self.del1 * self.v[0] + self.del2 * self.v[1]),
+        )
         # fix for delta.neq.1
         self.Jpxi = self._advect(self.xi, self.u, self.v)
 
     def _initialize_model_diagnostics(self):
         """Extra diagnostics for two-layer model"""
 
-        self.add_diagnostic('entspec',
-            description='barotropic enstrophy spectrum',
-            function= (lambda self:
-                      np.abs(self.del1*self.qh[0] + self.del2*self.qh[1])**2.),
-            units='',
-            dims=('l','k')
+        self.add_diagnostic(
+            "entspec",
+            description="barotropic enstrophy spectrum",
+            function=(
+                lambda self: np.abs(self.del1 * self.qh[0] + self.del2 * self.qh[1])
+                ** 2.0
+            ),
+            units="",
+            dims=("l", "k"),
         )
 
-        self.add_diagnostic('APEflux',
-            description='spectral flux of available potential energy',
-            function= (lambda self:
-              self.rd**-2 * self.del1*self.del2 *
-              np.real((self.ph[0]-self.ph[1])*np.conj(self.Jptpc)) ),
-            units='',
-            dims=('l','k')
-       )
+        self.add_diagnostic(
+            "APEflux",
+            description="spectral flux of available potential energy",
+            function=(
+                lambda self: self.rd ** -2
+                * self.del1
+                * self.del2
+                * np.real((self.ph[0] - self.ph[1]) * np.conj(self.Jptpc))
+            ),
+            units="",
+            dims=("l", "k"),
+        )
 
-        self.add_diagnostic('KEflux',
-            description='spectral flux of kinetic energy',
-            function= (lambda self:
-              np.real(self.del1*self.ph[0]*np.conj(self.Jpxi[0])) +
-              np.real(self.del2*self.ph[1]*np.conj(self.Jpxi[1])) ),
-            units='',
-            dims=('l','k')
-       )
+        self.add_diagnostic(
+            "KEflux",
+            description="spectral flux of kinetic energy",
+            function=(
+                lambda self: np.real(self.del1 * self.ph[0] * np.conj(self.Jpxi[0]))
+                + np.real(self.del2 * self.ph[1] * np.conj(self.Jpxi[1]))
+            ),
+            units="",
+            dims=("l", "k"),
+        )
 
-        self.add_diagnostic('APEgenspec',
-            description='spectrum of available potential energy generation',
-            function= (lambda self: self.U * self.rd**-2 * self.del1 * self.del2 *
-                       np.real(1j*self.k*(self.del1*self.ph[0] + self.del2*self.ph[1]) *
-                                  np.conj(self.ph[0] - self.ph[1])) ),
-            units='',
-            dims=('l','k')
-       )
+        self.add_diagnostic(
+            "APEgenspec",
+            description="spectrum of available potential energy generation",
+            function=(
+                lambda self: self.U
+                * self.rd ** -2
+                * self.del1
+                * self.del2
+                * np.real(
+                    1j
+                    * self.k
+                    * (self.del1 * self.ph[0] + self.del2 * self.ph[1])
+                    * np.conj(self.ph[0] - self.ph[1])
+                )
+            ),
+            units="",
+            dims=("l", "k"),
+        )
 
-        self.add_diagnostic('APEgen',
-            description='total available potential energy generation',
-            function= (lambda self: self.U * self.rd**-2 * self.del1 * self.del2 *
-                       np.real((1j*self.k*
-                            (self.del1*self.ph[0] + self.del2*self.ph[1]) *
-                            np.conj(self.ph[0] - self.ph[1])).sum()
-                              +(1j*self.k[:,1:-2]*
-                            (self.del1*self.ph[0,:,1:-2] + self.del2*self.ph[1,:,1:-2]) *
-                            np.conj(self.ph[0,:,1:-2] - self.ph[1,:,1:-2])).sum()) /
-                            (self.M**2) ),
-            units='',
-            dims=('time')
-       )
+        self.add_diagnostic(
+            "APEgen",
+            description="total available potential energy generation",
+            function=(
+                lambda self: self.U
+                * self.rd ** -2
+                * self.del1
+                * self.del2
+                * np.real(
+                    (
+                        1j
+                        * self.k
+                        * (self.del1 * self.ph[0] + self.del2 * self.ph[1])
+                        * np.conj(self.ph[0] - self.ph[1])
+                    ).sum()
+                    + (
+                        1j
+                        * self.k[:, 1:-2]
+                        * (
+                            self.del1 * self.ph[0, :, 1:-2]
+                            + self.del2 * self.ph[1, :, 1:-2]
+                        )
+                        * np.conj(self.ph[0, :, 1:-2] - self.ph[1, :, 1:-2])
+                    ).sum()
+                )
+                / (self.M ** 2)
+            ),
+            units="",
+            dims=("time"),
+        )
         ### These generic diagnostics are now calculated in model.py ###
         # self.add_diagnostic('KE1spec',
         #     description='upper layer kinetic energy spectrum',

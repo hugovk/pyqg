@@ -3,124 +3,164 @@ import pyqg
 import xarray as xr
 import pytest
 
-year = 24*60*60*360.
+year = 24 * 60 * 60 * 360.0
 
 expected_vars = [
-    'q', 
-    'u', 
-    'v', 
-    'ufull', 
-    'vfull', 
-    'qh', 
-    'uh', 
-    'vh', 
-    'ph', 
-    'Ubg', 
-    'Qy',
+    "q",
+    "u",
+    "v",
+    "ufull",
+    "vfull",
+    "qh",
+    "uh",
+    "vh",
+    "ph",
+    "Ubg",
+    "Qy",
 ]
 
 expected_diags = [
-    'EKE', 
-    'entspec', 
-    'APEflux', 
-    'APEflux_div', 
-    'KEflux', 
-    'KEflux_div', 
-    'APEgen',
-    'APEgenspec',
-    'Ensspec',
-    'KEspec',
-    'EKEdiss',
-    'KEspec_modal',
-    'PEspec_modal',
-    'APEspec',
-    'ENSflux',
-    'ENSgenspec',
+    "EKE",
+    "entspec",
+    "APEflux",
+    "APEflux_div",
+    "KEflux",
+    "KEflux_div",
+    "APEgen",
+    "APEgenspec",
+    "Ensspec",
+    "KEspec",
+    "EKEdiss",
+    "KEspec_modal",
+    "PEspec_modal",
+    "APEspec",
+    "ENSflux",
+    "ENSgenspec",
 ]
 
 expected_attrs = [
-    'L',
-    'W',
-    'dt',
-    'filterfac',
-    'nk',
-    'nl',
-    'ntd',
-    'nx',
-    'ny',
-    'nz',
-    'rek',
-    'taveint',
-    'tavestart',
-    'tc',
-    'tmax',
-    'twrite',
+    "L",
+    "W",
+    "dt",
+    "filterfac",
+    "nk",
+    "nl",
+    "ntd",
+    "nx",
+    "ny",
+    "nz",
+    "rek",
+    "taveint",
+    "tavestart",
+    "tc",
+    "tmax",
+    "twrite",
 ]
 
 expected_coords = [
-    'time',
-    'lev',
-    'x',
-    'y',
-    'l',
-    'k',
+    "time",
+    "lev",
+    "x",
+    "y",
+    "l",
+    "k",
 ]
 
+
 def QG():
-    '''Initialize Two-layer Model'''
-    return pyqg.QGModel(tmax=year/2, twrite=10000, tavestart=year/3)
+    """Initialize Two-layer Model"""
+    return pyqg.QGModel(tmax=year / 2, twrite=10000, tavestart=year / 3)
+
 
 def Layered():
-    '''Initialize Layered quasigeostrophic model'''
-    L =  1000.e3     # length scale of box    [m]
-    Ld = 15.e3       # deformation scale      [m]
-    kd = 1./Ld       # deformation wavenumber [m^-1]
-    Nx = 64          # number of grid points
+    """Initialize Layered quasigeostrophic model"""
+    L = 1000.0e3  # length scale of box    [m]
+    Ld = 15.0e3  # deformation scale      [m]
+    kd = 1.0 / Ld  # deformation wavenumber [m^-1]
+    Nx = 64  # number of grid points
 
-    H1 = 500.        # layer 1 thickness  [m]
-    H2 = 1750.       # layer 2
-    H3 = 1750.       # layer 3
+    H1 = 500.0  # layer 1 thickness  [m]
+    H2 = 1750.0  # layer 2
+    H3 = 1750.0  # layer 3
 
-    U1 = 0.05          # layer 1 zonal velocity [m/s]
-    U2 = 0.025         # layer 2
-    U3 = 0.00          # layer 3
+    U1 = 0.05  # layer 1 zonal velocity [m/s]
+    U2 = 0.025  # layer 2
+    U3 = 0.00  # layer 3
 
-    rho1 = 1025.
+    rho1 = 1025.0
     rho2 = 1025.275
     rho3 = 1025.640
 
-    rek = 1.e-7       # linear bottom drag coeff.  [s^-1]
-    f0  = 0.0001236812857687059 # coriolis param [s^-1]
-    beta = 1.2130692965249345e-11 # planetary vorticity gradient [m^-1 s^-1]
+    rek = 1.0e-7  # linear bottom drag coeff.  [s^-1]
+    f0 = 0.0001236812857687059  # coriolis param [s^-1]
+    beta = 1.2130692965249345e-11  # planetary vorticity gradient [m^-1 s^-1]
 
-    Ti = Ld/(abs(U1))  # estimate of most unstable e-folding time scale [s]
-    dt = Ti/200.       # time-step [s]
-    tmax = 300*Ti      # simulation time [s]
+    Ti = Ld / (abs(U1))  # estimate of most unstable e-folding time scale [s]
+    dt = Ti / 200.0  # time-step [s]
+    tmax = 300 * Ti  # simulation time [s]
 
-    return pyqg.LayeredModel(nx=Nx, nz=3, U = [U1,U2,U3],V = [0.,0.,0.],L=L,f=f0,beta=beta,
-                             H = [H1,H2,H3], rho=[rho1,rho2,rho3],rek=rek,
-                            dt=dt,tmax=tmax, twrite=5000, tavestart=Ti*10)
+    return pyqg.LayeredModel(
+        nx=Nx,
+        nz=3,
+        U=[U1, U2, U3],
+        V=[0.0, 0.0, 0.0],
+        L=L,
+        f=f0,
+        beta=beta,
+        H=[H1, H2, H3],
+        rho=[rho1, rho2, rho3],
+        rek=rek,
+        dt=dt,
+        tmax=tmax,
+        twrite=5000,
+        tavestart=Ti * 10,
+    )
+
 
 def BT():
-    '''Initialize Barotropic model'''
-    return pyqg.BTModel(L=2.*np.pi, nx=256, beta=0., H=1., rek=0., 
-                     rd=None, tmax=40, dt=0.001, taveint=1, ntd=4)
-    
+    """Initialize Barotropic model"""
+    return pyqg.BTModel(
+        L=2.0 * np.pi,
+        nx=256,
+        beta=0.0,
+        H=1.0,
+        rek=0.0,
+        rd=None,
+        tmax=40,
+        dt=0.001,
+        taveint=1,
+        ntd=4,
+    )
+
+
 def SQG():
-    '''Initialize Surface Quasi-Geostrophic Model'''
-    return pyqg.SQGModel(L=2.*np.pi, nx=512, tmax = 26.005, beta = 0., 
-                           Nb = 1., H = 1., rek = 0., rd = None, dt = 0.005,
-                           taveint=1, twrite=400, ntd=4)
-    
+    """Initialize Surface Quasi-Geostrophic Model"""
+    return pyqg.SQGModel(
+        L=2.0 * np.pi,
+        nx=512,
+        tmax=26.005,
+        beta=0.0,
+        Nb=1.0,
+        H=1.0,
+        rek=0.0,
+        rd=None,
+        dt=0.005,
+        taveint=1,
+        twrite=400,
+        ntd=4,
+    )
+
+
 @pytest.fixture(params=[QG, Layered, BT, SQG])
 def all_models(request):
     model = request.param()
     return model
 
+
 def test_xarray(all_models):
-    '''Run with snapshots and test contents of xarray.dataset'''
-    m=all_models
-    tsnapint=year/4
+    """Run with snapshots and test contents of xarray.dataset"""
+    m = all_models
+    tsnapint = year / 4
     for snapshot in m.run_with_snapshots(tsnapstart=m.t, tsnapint=tsnapint):
         ds = m.to_dataset()
         assert type(ds) == xr.Dataset
@@ -138,7 +178,7 @@ def test_xarray(all_models):
 
         if snapshot > tsnapint:
 
-            for v in list(ds.keys()): 
+            for v in list(ds.keys()):
                 assert v in expected_vars + expected_diags
 
             for a in expected_attrs:

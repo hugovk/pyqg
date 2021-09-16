@@ -4,18 +4,27 @@ import logging
 import warnings
 
 from .errors import DiagnosticNotFilledError
-from .kernel import PseudoSpectralKernel, tendency_forward_euler, tendency_ab2, tendency_ab3
+from .kernel import (
+    PseudoSpectralKernel,
+    tendency_forward_euler,
+    tendency_ab2,
+    tendency_ab3,
+)
+
 try:
     import mkl
+
     np.use_fastnumpy = True
 except ImportError:
     pass
 
 try:
     import pyfftw
+
     pyfftw.interfaces.cache.enable()
 except ImportError:
     pass
+
 
 class Model(PseudoSpectralKernel):
     """A generic pseudo-spectral inversion model.
@@ -86,35 +95,35 @@ class Model(PseudoSpectralKernel):
         self,
         # grid size parameters
         nz=1,
-        nx=64,                     # grid resolution
+        nx=64,  # grid resolution
         ny=None,
-        L=1e6,                     # domain size is L [m]
+        L=1e6,  # domain size is L [m]
         W=None,
         # timestepping parameters
-        dt=7200.,                   # numerical timestep
-        twrite=1000.,               # interval for cfl and ke writeout (in timesteps)
-        tmax=1576800000.,           # total time of integration
-        tavestart=315360000.,       # start time for averaging
-        taveint=86400.,             # time interval used for summation in longterm average in seconds
-        useAB2=False,               # use second order Adams Bashforth timestepping instead of 3rd
+        dt=7200.0,  # numerical timestep
+        twrite=1000.0,  # interval for cfl and ke writeout (in timesteps)
+        tmax=1576800000.0,  # total time of integration
+        tavestart=315360000.0,  # start time for averaging
+        taveint=86400.0,  # time interval used for summation in longterm average in seconds
+        useAB2=False,  # use second order Adams Bashforth timestepping instead of 3rd
         # friction parameters
-        rek=5.787e-7,               # linear drag in lower layer
-        filterfac=23.6,             # the factor for use in the exponential filter
+        rek=5.787e-7,  # linear drag in lower layer
+        filterfac=23.6,  # the factor for use in the exponential filter
         # constants
-        f = None,                   # coriolis parameter (not necessary for two-layer model
-                                    #  if deformation radius is provided)
-        g= 9.81,                    # acceleration due to gravity
+        f=None,  # coriolis parameter (not necessary for two-layer model
+        #  if deformation radius is provided)
+        g=9.81,  # acceleration due to gravity
         # diagnostics parameters
-        diagnostics_list='all',     # which diagnostics to output
+        diagnostics_list="all",  # which diagnostics to output
         # fft parameters
         # removed because fftw is now manditory
-        #use_fftw = False,               # fftw flag
-        #teststyle = False,            # use fftw with "estimate" planner to get reproducibility
-        ntd = 1,                       # number of threads to use in fftw computations
-        log_level = 1,                 # logger level: from 0 for quiet (no log) to 4 for verbose
-                                       #     logger (see  https://docs.python.org/2/library/logging.html)
-        logfile = None,                # logfile; None prints to screen
-        ):
+        # use_fftw = False,               # fftw flag
+        # teststyle = False,            # use fftw with "estimate" planner to get reproducibility
+        ntd=1,  # number of threads to use in fftw computations
+        log_level=1,  # logger level: from 0 for quiet (no log) to 4 for verbose
+        #     logger (see  https://docs.python.org/2/library/logging.html)
+        logfile=None,  # logfile; None prints to screen
+    ):
         """
         .. note:: All of the test cases use ``nx==ny``. Expect bugs if you choose
                   these parameters to be different.
@@ -187,7 +196,7 @@ class Model(PseudoSpectralKernel):
         self.g = g
         if f:
             self.f = f
-            self.f2 = f**2
+            self.f2 = f ** 2
 
         # TODO: make this less complicated!
         # Really we just need to initialize the grid here. It's not necessary
@@ -201,8 +210,7 @@ class Model(PseudoSpectralKernel):
         self._initialize_inversion_matrix()
         self._initialize_diagnostics(diagnostics_list)
 
-
-    def run_with_snapshots(self, tsnapstart=0., tsnapint=432000.):
+    def run_with_snapshots(self, tsnapstart=0.0, tsnapint=432000.0):
         """Run the model forward, yielding to user code at specified intervals.
 
         Parameters
@@ -214,55 +222,56 @@ class Model(PseudoSpectralKernel):
             The interval at which to yield.
         """
 
-        tsnapints = np.ceil(tsnapint/self.dt)
+        tsnapints = np.ceil(tsnapint / self.dt)
 
-        while(self.t < self.tmax):
+        while self.t < self.tmax:
             self._step_forward()
-            if self.t>=tsnapstart and (self.tc%tsnapints)==0:
+            if self.t >= tsnapstart and (self.tc % tsnapints) == 0:
                 yield self.t
         return
 
     def run(self):
         """Run the model forward without stopping until the end."""
-        while(self.t < self.tmax):
+        while self.t < self.tmax:
             self._step_forward()
 
-
     def vertical_modes(self):
-        """ Calculate standard vertical modes. Simply
-            the eigenvectors of the stretching matrix S """
+        """Calculate standard vertical modes. Simply
+        the eigenvectors of the stretching matrix S"""
 
-        evals,evecs = np.linalg.eig(-self.S)
+        evals, evecs = np.linalg.eig(-self.S)
 
         asort = evals.argsort()
 
         # deformation wavenumbers and radii
         self.kdi2 = evals[asort]
         self.radii = np.zeros_like(self.kdi2)
-        self.radii[0] = np.sqrt(self.g*self.H)/np.abs(self.f) # barotropic def. radius
-        self.radii[1:] = 1./np.sqrt(self.kdi2[1:])
+        self.radii[0] = np.sqrt(self.g * self.H) / np.abs(
+            self.f
+        )  # barotropic def. radius
+        self.radii[1:] = 1.0 / np.sqrt(self.kdi2[1:])
 
         # eigenstructure
-        self.pmodes = evecs[:,asort]
+        self.pmodes = evecs[:, asort]
 
         # normalize to have unit L2-norm
-        Ai = (self.H / (self.Hi[:,np.newaxis]*(self.pmodes**2)).sum(axis=0))**0.5
-        self.pmodes = Ai[np.newaxis,:]*self.pmodes
+        Ai = (self.H / (self.Hi[:, np.newaxis] * (self.pmodes ** 2)).sum(axis=0)) ** 0.5
+        self.pmodes = Ai[np.newaxis, :] * self.pmodes
 
-    def modal_projection(self,p,forward=True):
-        """ Performs a field p into modal amplitudes pn
-                using the basis [pmodes]. The inverse
-                transform calculates p from pn"""
+    def modal_projection(self, p, forward=True):
+        """Performs a field p into modal amplitudes pn
+        using the basis [pmodes]. The inverse
+        transform calculates p from pn"""
 
         if forward:
-            pt = np.linalg.solve(self.pmodes[np.newaxis,np.newaxis],p.T).T
+            pt = np.linalg.solve(self.pmodes[np.newaxis, np.newaxis], p.T).T
         else:
-            pt = np.einsum("ik,k...->i...",self.pmodes,p)
+            pt = np.einsum("ik,k...->i...", self.pmodes, p)
 
         return pt
 
-    def stability_analysis(self,bottom_friction=False):
-        r""" Performs the baroclinic linear instability analysis given
+    def stability_analysis(self, bottom_friction=False):
+        r"""Performs the baroclinic linear instability analysis given
                 given the base state velocity :math: `(U, V)` and
                 the stretching matrix  :math: `S`:
 
@@ -306,27 +315,30 @@ class Model(PseudoSpectralKernel):
 
         """
 
-        omega = np.zeros_like(self.wv)+0.j
+        omega = np.zeros_like(self.wv) + 0.0j
         phi = np.zeros_like(self.qh)
 
         I = np.eye(self.nz)
 
-        L2 = self.S[:,:,np.newaxis,np.newaxis] - self.wv2*I[:,:,np.newaxis,np.newaxis]
+        L2 = (
+            self.S[:, :, np.newaxis, np.newaxis]
+            - self.wv2 * I[:, :, np.newaxis, np.newaxis]
+        )
 
-        Q =  I[:,:,np.newaxis,np.newaxis]*(self.ikQy - self.ilQx).imag
+        Q = I[:, :, np.newaxis, np.newaxis] * (self.ikQy - self.ilQx).imag
 
-        Uk =(self.Ubg*I)[:,:,np.newaxis,np.newaxis]*self.k
-        Vl =(self.Vbg*I)[:,:,np.newaxis,np.newaxis]*self.l
-        L3 = np.einsum('ij...,jk...->ik...',L2,Uk+Vl) + 0j
+        Uk = (self.Ubg * I)[:, :, np.newaxis, np.newaxis] * self.k
+        Vl = (self.Vbg * I)[:, :, np.newaxis, np.newaxis] * self.l
+        L3 = np.einsum("ij...,jk...->ik...", L2, Uk + Vl) + 0j
 
         if bottom_friction:
-            L3[-1,-1,:,:] += 1j*self.rek*self.wv2
+            L3[-1, -1, :, :] += 1j * self.rek * self.wv2
 
         L4 = self.a.T
 
-        M = np.einsum('...ij,...jk->...ik',L4,(L3+Q).T)
+        M = np.einsum("...ij,...jk->...ik", L4, (L3 + Q).T)
 
-        evals,evecs = np.linalg.eig(M)
+        evals, evecs = np.linalg.eig(M)
         evals, evecs = evals.T, evecs.T
 
         # sorting things this way proved way
@@ -334,8 +346,8 @@ class Model(PseudoSpectralKernel):
         imax = evals.imag.argmax(axis=0)
         for i in range(self.nl):
             for j in range(self.nk):
-                omega[i,j] = evals[imax[i,j],i,j]
-                phi[:,i,j] = evecs[imax[i,j],:,i,j]
+                omega[i, j] = evals[imax[i, j], i, j]
+                phi[:, i, j] = evecs[imax[i, j], :, i, j]
 
         return omega, phi
 
@@ -367,69 +379,68 @@ class Model(PseudoSpectralKernel):
 
     def _initialize_time(self):
         """Set up timestep stuff"""
-        #self.t=0        # actual time
-        #self.tc=0       # timestep number
-        self.taveints = np.ceil(self.taveint/self.dt)
+        # self.t=0        # actual time
+        # self.tc=0       # timestep number
+        self.taveints = np.ceil(self.taveint / self.dt)
 
     ### initialization routines, only called once at the beginning ###
     # TODO: clean up and simplify this whole routine
     def _initialize_grid(self):
         """Set up spatial and spectral grids and related constants"""
-        self.x,self.y = np.meshgrid(
-            np.arange(0.5,self.nx,1.)/self.nx*self.L,
-            np.arange(0.5,self.ny,1.)/self.ny*self.W )
+        self.x, self.y = np.meshgrid(
+            np.arange(0.5, self.nx, 1.0) / self.nx * self.L,
+            np.arange(0.5, self.ny, 1.0) / self.ny * self.W,
+        )
 
         # Notice: at xi=1 U=beta*rd^2 = c for xi>1 => U>c
         # wavenumber one (equals to dkx/dky)
-        self.dk = 2.*pi/self.L
-        self.dl = 2.*pi/self.W
+        self.dk = 2.0 * pi / self.L
+        self.dl = 2.0 * pi / self.W
 
         # wavenumber grids
         # set in kernel
-        #self.nl = self.ny
-        #self.nk = int(self.nx/2+1)
-        self.ll = self.dl*np.append( np.arange(0.,self.nx/2),
-            np.arange(-self.nx/2,0.) )
-        self.kk = self.dk*np.arange(0.,self.nk)
+        # self.nl = self.ny
+        # self.nk = int(self.nx/2+1)
+        self.ll = self.dl * np.append(
+            np.arange(0.0, self.nx / 2), np.arange(-self.nx / 2, 0.0)
+        )
+        self.kk = self.dk * np.arange(0.0, self.nk)
 
         self.k, self.l = np.meshgrid(self.kk, self.ll)
-        self.ik = 1j*self.k
-        self.il = 1j*self.l
+        self.ik = 1j * self.k
+        self.il = 1j * self.l
         # physical grid spacing
         self.dx = self.L / self.nx
         self.dy = self.W / self.ny
 
         # constant for spectral normalizations
-        self.M = self.nx*self.ny
+        self.M = self.nx * self.ny
 
         # isotropic wavenumber^2 grid
         # the inversion is not defined at kappa = 0
-        self.wv2 = self.k**2 + self.l**2
-        self.wv = np.sqrt( self.wv2 )
+        self.wv2 = self.k ** 2 + self.l ** 2
+        self.wv = np.sqrt(self.wv2)
 
-        iwv2 = self.wv2 != 0.
+        iwv2 = self.wv2 != 0.0
         self.wv2i = np.zeros_like(self.wv2)
-        self.wv2i[iwv2] = self.wv2[iwv2]**-1
+        self.wv2i[iwv2] = self.wv2[iwv2] ** -1
 
     def _initialize_background(self):
-        raise NotImplementedError(
-            'needs to be implemented by Model subclass')
+        raise NotImplementedError("needs to be implemented by Model subclass")
 
     def _initialize_inversion_matrix(self):
-        raise NotImplementedError(
-            'needs to be implemented by Model subclass')
+        raise NotImplementedError("needs to be implemented by Model subclass")
 
     def _initialize_forcing(self):
-        raise NotImplementedError(
-            'needs to be implemented by Model subclass')
+        raise NotImplementedError("needs to be implemented by Model subclass")
 
     def _initialize_filter(self):
         """Set up frictional filter."""
         # this defines the spectral filter (following Arbic and Flierl, 2003)
-        cphi=0.65*pi
-        wvx=np.sqrt((self.k*self.dx)**2.+(self.l*self.dy)**2.)
-        filtr = np.exp(-self.filterfac*(wvx-cphi)**4.)
-        filtr[wvx<=cphi] = 1.
+        cphi = 0.65 * pi
+        wvx = np.sqrt((self.k * self.dx) ** 2.0 + (self.l * self.dy) ** 2.0)
+        filtr = np.exp(-self.filterfac * (wvx - cphi) ** 4.0)
+        filtr[wvx <= cphi] = 1.0
         self.filtr = filtr
 
     def _filter(self, q):
@@ -443,41 +454,39 @@ class Model(PseudoSpectralKernel):
 
         self.logger = logging.getLogger(__name__)
 
-
         if not (self.logfile is None):
-            fhandler = logging.FileHandler(filename=self.logfile, mode='w')
+            fhandler = logging.FileHandler(filename=self.logfile, mode="w")
         else:
             fhandler = logging.StreamHandler()
 
-        formatter = logging.Formatter('%(levelname)s: %(message)s')
+        formatter = logging.Formatter("%(levelname)s: %(message)s")
 
         fhandler.setFormatter(formatter)
 
         if not self.logger.handlers:
             self.logger.addHandler(fhandler)
 
-        self.logger.setLevel(self.log_level*10)
+        self.logger.setLevel(self.log_level * 10)
 
         # this prevents the logger to propagate into the ipython notebook log
         self.logger.propagate = False
 
-        self.logger.info(' Logger initialized')
-
+        self.logger.info(" Logger initialized")
 
     # compute advection in grid space (returns qdot in fourier space)
     # *** don't remove! needed for diagnostics (but not forward model) ***
     def _advect(self, q, u, v):
         """Given real inputs q, u, v, returns the advective tendency for
         q in spectral space."""
-        uq = u*q
-        vq = v*q
+        uq = u * q
+        vq = v * q
         # this is a hack, since fft now requires input to have shape (nz,ny,nx)
         # it does an extra unnecessary fft
-        is_2d = (uq.ndim==2)
+        is_2d = uq.ndim == 2
         if is_2d:
-            uq = np.tile(uq[np.newaxis,:,:], (self.nz,1,1))
-            vq = np.tile(vq[np.newaxis,:,:], (self.nz,1,1))
-        tend = self.ik*self.fft(uq) + self.il*self.fft(vq)
+            uq = np.tile(uq[np.newaxis, :, :], (self.nz, 1, 1))
+            vq = np.tile(vq[np.newaxis, :, :], (self.nz, 1, 1))
+        tend = self.ik * self.fft(uq) + self.il * self.fft(vq)
         if is_2d:
             return tend[0]
         else:
@@ -489,20 +498,28 @@ class Model(PseudoSpectralKernel):
 
     def _print_status(self):
         """Output some basic stats."""
-        if (self.log_level) and ((self.tc % self.twrite)==0):
+        if (self.log_level) and ((self.tc % self.twrite) == 0):
             self.ke = self._calc_ke()
             self.cfl = self._calc_cfl()
-            #print 't=%16d, tc=%10d: cfl=%5.6f, ke=%9.9f' % (
+            # print 't=%16d, tc=%10d: cfl=%5.6f, ke=%9.9f' % (
             #       self.t, self.tc, cfl, ke)
-            self.logger.info('Step: %i, Time: %3.2e, KE: %3.2e, CFL: %4.3f'
-                    , self.tc,self.t,self.ke,self.cfl )
+            self.logger.info(
+                "Step: %i, Time: %3.2e, KE: %3.2e, CFL: %4.3f",
+                self.tc,
+                self.t,
+                self.ke,
+                self.cfl,
+            )
 
-            assert self.cfl<1., self.logger.error('CFL condition violated')
-
+            assert self.cfl < 1.0, self.logger.error("CFL condition violated")
 
     def _calc_diagnostics(self):
         # here is where we calculate diagnostics
-        if (self.t>=self.dt) and (self.t>=self.tavestart) and (self.tc%self.taveints==0):
+        if (
+            (self.t >= self.dt)
+            and (self.t >= self.tavestart)
+            and (self.tc % self.taveints == 0)
+        ):
             self._increment_diagnostics()
 
     # def _forward_timestep(self):
@@ -536,8 +553,7 @@ class Model(PseudoSpectralKernel):
 
     ### All the diagnostic stuff follows. ###
     def _calc_cfl(self):
-        raise NotImplementedError(
-            'needs to be implemented by Model subclass')
+        raise NotImplementedError("needs to be implemented by Model subclass")
 
     # this is stuff the Cesar added
 
@@ -548,10 +564,8 @@ class Model(PseudoSpectralKernel):
     #     self.eddy_time = np.array([self.calc_eddy_time()])
     #     self.time = np.array([0.])
 
-
     def _calc_ke(self):
-        raise NotImplementedError(
-            'needs to be implemented by Model subclass')
+        raise NotImplementedError("needs to be implemented by Model subclass")
 
     def _initialize_diagnostics(self, diagnostics_list):
         # Initialization for diagnotics
@@ -560,43 +574,55 @@ class Model(PseudoSpectralKernel):
         self._initialize_core_diagnostics()
         self._initialize_model_diagnostics()
 
-        if diagnostics_list == 'all':
-            pass # by default, all diagnostics are active
-        elif diagnostics_list == 'none':
+        if diagnostics_list == "all":
+            pass  # by default, all diagnostics are active
+        elif diagnostics_list == "none":
             self.set_active_diagnostics([])
         else:
             self.set_active_diagnostics(diagnostics_list)
 
     def _initialize_core_diagnostics(self):
         """Diagnostics common to all models."""
-       
-        self.add_diagnostic('Ensspec',
-            description='enstrophy spectrum',
-            function= (lambda self: np.abs(self.qh)**2/self.M**2),
-            units='',
-            dims=('lev','l','k')         
+
+        self.add_diagnostic(
+            "Ensspec",
+            description="enstrophy spectrum",
+            function=(lambda self: np.abs(self.qh) ** 2 / self.M ** 2),
+            units="",
+            dims=("lev", "l", "k"),
         )
 
-        self.add_diagnostic('KEspec',
-            description='kinetic energy spectrum',
-            function= (lambda self: self.wv2*np.abs(self.ph)**2/self.M**2),
-            units='',
-            dims=('lev','l','k')  
-        )      # factor of 2 to account for the fact that we have only half of
-               #    the Fourier coefficients.
+        self.add_diagnostic(
+            "KEspec",
+            description="kinetic energy spectrum",
+            function=(lambda self: self.wv2 * np.abs(self.ph) ** 2 / self.M ** 2),
+            units="",
+            dims=("lev", "l", "k"),
+        )  # factor of 2 to account for the fact that we have only half of
+        #    the Fourier coefficients.
 
-        self.add_diagnostic('EKEdiss',
-            description='total energy dissipation by bottom drag',
-            function= (lambda self: self.Hi[-1]/self.H*self.rek*(self.v[-1]**2 + self.u[-1]**2).mean()),
-            units='',
-            dims=('time')
+        self.add_diagnostic(
+            "EKEdiss",
+            description="total energy dissipation by bottom drag",
+            function=(
+                lambda self: self.Hi[-1]
+                / self.H
+                * self.rek
+                * (self.v[-1] ** 2 + self.u[-1] ** 2).mean()
+            ),
+            units="",
+            dims=("time"),
         )
 
-        self.add_diagnostic('EKE',
-            description='mean eddy kinetic energy',
-            function= (lambda self: 0.5*(self.v**2 + self.u**2).mean(axis=-1).mean(axis=-1)),
-            units='',
-            dims=('lev')
+        self.add_diagnostic(
+            "EKE",
+            description="mean eddy kinetic energy",
+            function=(
+                lambda self: 0.5
+                * (self.v ** 2 + self.u ** 2).mean(axis=-1).mean(axis=-1)
+            ),
+            units="",
+            dims=("lev"),
         )
 
     def _calc_derived_fields(self):
@@ -609,36 +635,38 @@ class Model(PseudoSpectralKernel):
 
     def _set_active_diagnostics(self, diagnostics_list):
         for d in self.diagnostics:
-            self.diagnostics[d]['active'] == (d in diagnostics_list)
+            self.diagnostics[d]["active"] == (d in diagnostics_list)
 
-    def add_diagnostic(self, diag_name, description=None, function=None, units=None, dims=None):
+    def add_diagnostic(
+        self, diag_name, description=None, function=None, units=None, dims=None
+    ):
         # create a new diagnostic dict and add it to the object array
 
         # make sure the function is callable
-        assert hasattr(function, '__call__')
+        assert hasattr(function, "__call__")
 
         # make sure the name is valid
         assert isinstance(diag_name, str)
 
         # by default, diagnostic is active
         self.diagnostics[diag_name] = {
-           'description': description,
-           'units': units,
-           'dims': dims,
-           'active': True,
-           'count': 0,
-           'function': function, }
+            "description": description,
+            "units": units,
+            "dims": dims,
+            "active": True,
+            "count": 0,
+            "function": function,
+        }
 
     def describe_diagnostics(self):
         """Print a human-readable summary of the available diagnostics."""
         diag_names = list(self.diagnostics.keys())
         diag_names.sort()
-        print('NAME               | DESCRIPTION')
-        print(80*'-')
+        print("NAME               | DESCRIPTION")
+        print(80 * "-")
         for k in diag_names:
             d = self.diagnostics[k]
-            print('{:<10} | {:<54}'.format(
-                 *(k,  d['description'])))
+            print("{:<10} | {:<54}".format(*(k, d["description"])))
 
     def _increment_diagnostics(self):
         # compute intermediate quantities needed for some diagnostics
@@ -646,44 +674,46 @@ class Model(PseudoSpectralKernel):
         self._calc_derived_fields()
 
         for dname in self.diagnostics:
-            if self.diagnostics[dname]['active']:
-                res = self.diagnostics[dname]['function'](self)
-                if self.diagnostics[dname]['count']==0:
-                    self.diagnostics[dname]['value'] = res
+            if self.diagnostics[dname]["active"]:
+                res = self.diagnostics[dname]["function"](self)
+                if self.diagnostics[dname]["count"] == 0:
+                    self.diagnostics[dname]["value"] = res
                 else:
-                    self.diagnostics[dname]['value'] += res
-                self.diagnostics[dname]['count'] += 1
+                    self.diagnostics[dname]["value"] += res
+                self.diagnostics[dname]["count"] += 1
 
     def get_diagnostic(self, dname):
-        if 'value' not in self.diagnostics[dname]:
+        if "value" not in self.diagnostics[dname]:
             raise DiagnosticNotFilledError(dname)
-        return (self.diagnostics[dname]['value'] /
-                self.diagnostics[dname]['count'])
+        return self.diagnostics[dname]["value"] / self.diagnostics[dname]["count"]
 
     def spec_var(self, ph):
-        """ compute variance of p from Fourier coefficients ph """
-        var_dens = 2. * np.abs(ph)**2 / self.M**2
+        """compute variance of p from Fourier coefficients ph"""
+        var_dens = 2.0 * np.abs(ph) ** 2 / self.M ** 2
         # only half of coefs [0] and [nx/2+1] due to symmetry in real fft2
-        var_dens[...,0] = var_dens[...,0]/2.
-        var_dens[...,-1] = var_dens[...,-1]/2.
+        var_dens[..., 0] = var_dens[..., 0] / 2.0
+        var_dens[..., -1] = var_dens[..., -1] / 2.0
         return var_dens.sum()
 
     def set_qh(self, qh):
-        warnings.warn("Method deprecated. Set model.qh directly instead. ",
-            DeprecationWarning)
+        warnings.warn(
+            "Method deprecated. Set model.qh directly instead. ", DeprecationWarning
+        )
         self.qh = qh
 
     def set_q(self, q):
-        warnings.warn("Method deprecated. Set model.q directly instead. ",
-            DeprecationWarning)
+        warnings.warn(
+            "Method deprecated. Set model.q directly instead. ", DeprecationWarning
+        )
         self.q = q
 
     def to_dataset(self):
         """Convert outputs from model to an xarray dataset
-        
+
         Returns
         -------
         ds : xarray.Dataset
         """
         from .xarray_output import model_to_dataset
+
         return model_to_dataset(self)
