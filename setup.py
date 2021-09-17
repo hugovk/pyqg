@@ -3,12 +3,13 @@ from Cython.Build import cythonize
 import warnings
 import numpy as np
 import os
-import tempfile, subprocess, shutil
-import versioneer
+import shutil
+import subprocess
+import tempfile
 
 
 DISTNAME = "pyqg"
-URL = "http://github.com/pyqg/pyqg"
+URL = "https://github.com/pyqg/pyqg"
 AUTHOR = "pyqg team"
 AUTHOR_EMAIL = "pyqg-dev@googlegroups.com"
 LICENSE = "MIT"
@@ -85,8 +86,6 @@ printf("Hello from thread %d, nthreads %d\n", omp_get_thread_num(), omp_get_num_
 }
 """
 
-# python 3 needs rb
-
 
 def check_for_openmp():
     tmpdir = tempfile.mkdtemp()
@@ -145,10 +144,16 @@ ext_module = Extension(
     extra_link_args=extra_link_args,
 )
 
+
+def local_scheme(version):
+    """Skip the local version (eg. +xyz of 0.6.1.dev4+gdf99fe2)
+    to be able to upload to Test PyPI"""
+    return ""
+
+
 setup(
     name=DISTNAME,
-    version=versioneer.get_version(),
-    cmdclass=versioneer.get_cmdclass(),
+    use_scm_version={"local_scheme": local_scheme},
     description=DESCRIPTION,
     classifiers=CLASSIFIERS,
     long_description=LONG_DESCRIPTION,
@@ -161,6 +166,7 @@ setup(
     python_requires=">=3.6",
     ext_modules=cythonize(ext_module),
     include_dirs=[np.get_include()],
+    setup_requires=["setuptools_scm"],
     tests_require=tests_require,
     test_suite="nose.collector",
     zip_safe=False,
