@@ -7,14 +7,14 @@ import tempfile, subprocess, shutil
 import versioneer
 
 
-DISTNAME='pyqg'
-URL='http://github.com/pyqg/pyqg'
-AUTHOR='pyqg team'
-AUTHOR_EMAIL='pyqg-dev@googlegroups.com'
-LICENSE='MIT'
+DISTNAME = "pyqg"
+URL = "http://github.com/pyqg/pyqg"
+AUTHOR = "pyqg team"
+AUTHOR_EMAIL = "pyqg-dev@googlegroups.com"
+LICENSE = "MIT"
 
-DESCRIPTION='python quasigeostrophic model'
-LONG_DESCRIPTION="""
+DESCRIPTION = "python quasigeostrophic model"
+LONG_DESCRIPTION = """
 pyqg is a python solver for quasigeostrophic systems. Quasigeostophic
 equations are an approximation to the full fluid equations of motion in
 the limit of strong rotation and stratitifcation and are most applicable
@@ -42,44 +42,41 @@ Links
 """
 
 CLASSIFIERS = [
-    'Development Status :: 4 - Beta',
-    'License :: OSI Approved :: MIT License',
-    'Operating System :: OS Independent',
-    'Intended Audience :: Science/Research',
-    'Programming Language :: Python',
-    'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3 :: Only',
-    'Programming Language :: Python :: 3.6',
-    'Programming Language :: Python :: 3.7',
-    'Programming Language :: Python :: 3.8',
-    'Programming Language :: Python :: 3.9',
-    'Topic :: Scientific/Engineering',
-    'Topic :: Scientific/Engineering :: Physics',
-    'Topic :: Scientific/Engineering :: Atmospheric Science'
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
 
 
 ### Dependency section ###
-install_requires = [
-    'cython',
-    'numpy'
-]
+install_requires = ["cython", "numpy"]
 
 # This hack tells cython whether pyfftw is present
-use_pyfftw_file = 'pyqg/.compile_time_use_pyfftw.pxi'
-with open(use_pyfftw_file, 'wb') as f:
+use_pyfftw_file = "pyqg/.compile_time_use_pyfftw.pxi"
+with open(use_pyfftw_file, "wb") as f:
     try:
         import pyfftw
-        f.write(b'DEF PYQG_USE_PYFFTW = 1')
+
+        f.write(b"DEF PYQG_USE_PYFFTW = 1")
     except ImportError:
-        f.write(b'DEF PYQG_USE_PYFFTW = 0')
-        warnings.warn('Could not import pyfftw. Model may be slower.')
+        f.write(b"DEF PYQG_USE_PYFFTW = 0")
+        warnings.warn("Could not import pyfftw. Model may be slower.")
 
 # check for openmp following
 # http://stackoverflow.com/questions/16549893/programatically-testing-for-openmp-support-from-a-python-setup-script
 # see http://openmp.org/wp/openmp-compilers/
-omp_test = \
-br"""
+omp_test = br"""
 #include <omp.h>
 #include <stdio.h>
 int main() {
@@ -90,51 +87,56 @@ printf("Hello from thread %d, nthreads %d\n", omp_get_thread_num(), omp_get_num_
 
 # python 3 needs rb
 
+
 def check_for_openmp():
     tmpdir = tempfile.mkdtemp()
     curdir = os.getcwd()
     os.chdir(tmpdir)
-    filename = r'test.c'
+    filename = r"test.c"
     try:
-        cc = os.environ['CC']
+        cc = os.environ["CC"]
     except KeyError:
-        cc = 'gcc'
-    with open(filename, 'wb', 0) as file:
+        cc = "gcc"
+    with open(filename, "wb", 0) as file:
         file.write(omp_test)
-    with open(os.devnull, 'wb') as fnull:
+    with open(os.devnull, "wb") as fnull:
         try:
-            result = subprocess.call([cc, '-fopenmp', filename],
-                                     stdout=fnull, stderr=fnull)
+            result = subprocess.call(
+                [cc, "-fopenmp", filename], stdout=fnull, stderr=fnull
+            )
         except FileNotFoundError:
             result = 1
-    print('check_for_openmp() result: ', result)
+    print("check_for_openmp() result: ", result)
     os.chdir(curdir)
-    #clean up
+    # clean up
     shutil.rmtree(tmpdir)
 
-    return result==0
+    return result == 0
+
 
 extra_compile_args = []
 extra_link_args = []
 
 use_openmp = True
 if check_for_openmp() and use_openmp:
-    extra_compile_args.append('-fopenmp')
-    extra_link_args.append('-fopenmp')
+    extra_compile_args.append("-fopenmp")
+    extra_link_args.append("-fopenmp")
 else:
-    warnings.warn('Could not link with openmp. Model will be slow.')
+    warnings.warn("Could not link with openmp. Model will be slow.")
 
 # reathedocs can't and shouldn't build pyfftw
 # apparently setup.py overrides docs/requirements.txt
-#on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-#if on_rtd:
+# on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+# if on_rtd:
 #    install_requires.remove('pyfftw')
 
-tests_require = ['pytest']
+tests_require = ["pytest"]
+
 
 def readme():
-    with open('README.md') as f:
+    with open("README.md") as f:
         return f.read()
+
 
 ext_module = Extension(
     "pyqg.kernel",
@@ -143,21 +145,23 @@ ext_module = Extension(
     extra_link_args=extra_link_args,
 )
 
-setup(name=DISTNAME,
-      version=versioneer.get_version(),
-      cmdclass=versioneer.get_cmdclass(),
-      description=DESCRIPTION,
-      classifiers=CLASSIFIERS,
-      long_description=LONG_DESCRIPTION,
-      url=URL,
-      author=AUTHOR,
-      author_email=AUTHOR_EMAIL,
-      license=LICENSE,
-      packages=['pyqg'],
-      install_requires=install_requires,
-      python_requires='>=3.6',
-      ext_modules = cythonize(ext_module),
-      include_dirs = [np.get_include()],
-      tests_require = tests_require,
-      test_suite = 'nose.collector',
-      zip_safe=False)
+setup(
+    name=DISTNAME,
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
+    description=DESCRIPTION,
+    classifiers=CLASSIFIERS,
+    long_description=LONG_DESCRIPTION,
+    url=URL,
+    author=AUTHOR,
+    author_email=AUTHOR_EMAIL,
+    license=LICENSE,
+    packages=["pyqg"],
+    install_requires=install_requires,
+    python_requires=">=3.6",
+    ext_modules=cythonize(ext_module),
+    include_dirs=[np.get_include()],
+    tests_require=tests_require,
+    test_suite="nose.collector",
+    zip_safe=False,
+)
